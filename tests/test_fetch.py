@@ -61,3 +61,47 @@ def test_gives_up_after_timeouts(get, sleep):
     get.side_effect = requests.Timeout()
     with pytest.raises(RuntimeError):
         fetch.get_rates("EUR", date(2026, 1, 1), date(2026, 1, 2))
+        
+
+@patch("pln_rates.fetch.time.sleep")
+@patch("pln_rates.fetch.requests.get")
+def test_retries_after_429(get, sleep):
+    ok = response(200, [{"effectiveDate": "2026-01-02", "mid": 4.2}])
+    get.side_effect = [response(429), ok]
+    assert len(fetch.get_rates("EUR", date(2026, 1, 1), date(2026, 1, 2))) == 1
+
+
+@patch("pln_rates.fetch.time.sleep")
+@patch("pln_rates.fetch.requests.get")
+def test_response_without_rates_raises(get, sleep):
+    bad = response(200)
+    bad.json.return_value = {"something": "else"}
+    get.return_value = bad
+    with pytest.raises(RuntimeError, match="unexpected"):
+        fetch.get_rates("EUR", date(2026, 1, 1), date(2026, 1, 2))
+
+
+def rates_on(*days, mid=4.0):
+    return [{"effectiveDate": d, "mid": mid} for d in days]
+
+
+@patch("pln_rates.fetch.get_rates")
+def test_fetch_all_removes_duplicates_and_sorts(get_rates):
+    get_rates.return_value = rates_on("2026-01-05", "2026-01-02", "2026-01-05", "2026-01-09")
+    df = fetch.fetch_all(date(2026, 1, 1), date(2026, 1, 10))
+    assert len(df) == 12  # 3 days x 4 currencies
+    assert list(df[df["currency"] == "EUR"]["date"].dt.day) == [2, 5, 9]
+
+
+@patch("pln_rates.fetch.get_rates")
+def test_fetch_all_raises_on_gap(get_rates):
+    get_rates.return_value = rates_on("2026-01-02", "2026-02-20")
+    with pytest.raises(RuntimeError, match="gap"):
+        fetch.fetch_all(date(2026, 1, 1), date(2026, 2, 21))
+
+
+@patch("pln_rates.fetch.get_rates")
+def test_fetch_all_raises_on_bad_rate(get_rates):
+    get_rates.return_value = rates_on("2026-01-02", "2026-01-09", mid=0)
+    with pytest.raises(RuntimeError, match="non-positive"):
+        fetch.fetch_all(date(2026, 1, 1), date(2026, 1, 10))

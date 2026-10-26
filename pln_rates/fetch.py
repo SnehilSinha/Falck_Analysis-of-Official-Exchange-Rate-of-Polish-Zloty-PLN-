@@ -1,16 +1,18 @@
+import logging
 import time
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 
-BASE_URL = "https://api.nbp.pl/api/exchangerates/rates/a"
+URL = "https://api.nbp.pl/api/exchangerates/rates/a"
 CURRENCIES = ["EUR", "USD", "GBP", "JPY"]
-MAX_DAYS = 93   # NBP limit for one request
-TIMEOUT = 10    #seconds
-ATTEMPTS = 3    # error handling
-WAIT = 2        #seconds between attempts
+MAX_DAYS = 93
+TRIES = 3
+MAX_GAP = 7  # days: weekend + holidays never make a longer break
+
+log = logging.getLogger(__name__)
 
 
 def make_windows(start, end):
@@ -33,43 +35,49 @@ def default_end_date(now):
 
 
 def get_rates(code, start, end):
-    #One request to NBP. Returns a list of rates, or [] if there is no data
-    url = f"{BASE_URL}/{code}/{start}/{end}/"
-    for attempt in range(1, ATTEMPTS + 1):
+    url = f"{URL}/{code}/{start}/{end}/?format=json"
+    for i in range(TRIES):
         try:
-            response = requests.get(url, params={"format": "json"}, timeout=TIMEOUT)
-        except (requests.Timeout, requests.ConnectionError) as error:
-            if attempt == ATTEMPTS:
-                raise RuntimeError(f"{code} {start}..{end}: gave up after {ATTEMPTS} attempts") from error
-            time.sleep(WAIT)
-            continue
-
-        if response.status_code == 200:
-            return response.json()["rates"]
-        if response.status_code == 404:  # no data in this window
-            return []
-        if response.status_code >= 500 and attempt < ATTEMPTS:
-            time.sleep(WAIT)
-            continue
-        raise RuntimeError(f"{code} {start}..{end}: HTTP {response.status_code}")
-
+            r = requests.get(url, timeout=10)
+        except (requests.Timeout, requests.ConnectionError):
+            r = None
+        if r is not None:
+            if r.status_code == 200:
+                try:
+                    return r.json()["rates"]
+                except (ValueError, KeyError):
+                    raise RuntimeError(f"{code} {start} to {end}: unexpected response from NBP")
+            if r.status_code == 404:  # no data in this window
+                return []
+            if r.status_code < 500 and r.status_code != 429:  # 400 etc: our request is wrong, retrying won't help
+                raise RuntimeError(f"{code} {start} to {end}: HTTP {r.status_code}")
+        # timeout, 5xx or 429 (too many requests): wait longer each time, then try again
+        log.warning("%s %s to %s: try %d of %d failed", code, start, end, i + 1, TRIES)
+        time.sleep(2 ** i)
+    raise RuntimeError(f"{code} {start} to {end}: failed after {TRIES} tries")
 
 def fetch_all(start, end):
-    #Download all currencies for start..end into one DataFrame
     rows = []
     for code in CURRENCIES:
-        for window_start, window_end in make_windows(start, end):
-            for item in get_rates(code, window_start, window_end):
-                rows.append({"date": item["effectiveDate"], "currency": code, "rate": item["mid"]})
+        for s, e in make_windows(start, end):
+            for item in get_rates(code, s, e):
+                rows.append((item["effectiveDate"], code, item["mid"]))
 
     df = pd.DataFrame(rows, columns=["date", "currency", "rate"])
     df["date"] = pd.to_datetime(df["date"])
-    df = df.drop_duplicates(["date", "currency"])
-    df = df.sort_values(["currency", "date"]).reset_index(drop=True)
+    df = df.drop_duplicates(["date", "currency"]).sort_values(["currency", "date"])
+
+    if df["rate"].isna().any() or (df["rate"] <= 0).any():
+        raise RuntimeError("found missing or non-positive rates")
 
     for code in CURRENCIES:
-        part = df[df["currency"] == code]
-        if part.empty:
+        dates = df[df["currency"] == code]["date"]
+        if dates.empty:
             raise RuntimeError(f"no data for {code}")
-        print(f"{code}: {part['date'].min().date()} to {part['date'].max().date()}, {len(part)} rows")
+        # a 404 is skipped in get_rates, so check here that no window went missing
+        if dates.diff().max() > pd.Timedelta(days=MAX_GAP):
+            raise RuntimeError(f"{code}: gap of more than {MAX_GAP} days, a window may be missing")
+        if (dates.min() - pd.Timestamp(start)).days > MAX_GAP or (pd.Timestamp(end) - dates.max()).days > MAX_GAP:
+            raise RuntimeError(f"{code}: data does not cover {start} to {end}")
+        log.info("%s: %s to %s, %d rows", code, dates.min().date(), dates.max().date(), len(dates))
     return df

@@ -24,4 +24,5 @@ def answers(df):
         for name, row in [("biggest one-day fall", fall), ("biggest one-day rise", rise)]:
             rows.append({"question": name, "currency": code, "date": row["date"].date(), "rate": row["rate"],
                          "change_pln": row["change_pln"], "change_pct": row["change_pct"]})
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).round({"rate": 6, "change_pln": 6, "change_pct": 2})
+    
