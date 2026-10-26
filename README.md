@@ -50,7 +50,7 @@ Results are written to `data/rates.csv` and `outputs/`.
 - The script stops with an error if a currency has a gap of more than 7 days, doesn’t
   cover the period, or has missing or non-positive rates. Blank change columns on the
   lowest/highest rows are intentional.
--  
+- 
 
 ## Results (2021-10-25 to 2026-10-23)
 
@@ -79,8 +79,7 @@ zloty weakened sharply after the invasion of Ukraine.
   and zero or negative rates are caught
 - Tests for the whole run (`main`) and for what is in the charts. Right now
   they only check that the chart files are created
-- Better charts: mark the lowest and highest points and the 2022-03-07 jump,
-  and add a chart of daily percent changes
+- Better charts: mark the 2022-03-07 jump and add a chart of daily percent changes
 - PySpark: I used Pandas because the data is only about 5,000 rows. If the
   data grew, the analysis step would move to PySpark using window functions
 - For a real production setup: a daily scheduled run after 12:15, loading
