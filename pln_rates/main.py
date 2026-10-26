@@ -37,7 +37,7 @@ def main():
     result.to_csv(ROOT / "outputs" / "answers.csv", index=False)
     print(result.to_string())
 
-    plot_levels(df, ROOT / "outputs" / "levels.png")
+    plot_levels(df, ROOT / "outputs" / "levels.png", result)
     plot_indexed(df, ROOT / "outputs" / "indexed.png")
 
 

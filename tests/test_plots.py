@@ -1,5 +1,6 @@
 import pandas as pd
 
+from pln_rates.analysis import answers
 from pln_rates.plots import plot_indexed, plot_levels
 
 
@@ -16,3 +17,15 @@ def test_plots_create_files(tmp_path):
 
     assert (tmp_path / "levels.png").exists()
     assert (tmp_path / "indexed.png").exists()
+
+def test_levels_with_markers_for_lowest_and_highest(tmp_path):
+    rows = []
+    for code in ["EUR", "GBP", "JPY", "USD"]:
+        for i, rate in enumerate([4.0, 4.5, 4.2]):
+            rows.append((f"2026-01-0{i + 1}", code, rate))
+    df = pd.DataFrame(rows, columns=["date", "currency", "rate"])
+    df["date"] = pd.to_datetime(df["date"])
+
+    plot_levels(df, tmp_path / "levels.png", answers(df))
+
+    assert (tmp_path / "levels.png").exists()
