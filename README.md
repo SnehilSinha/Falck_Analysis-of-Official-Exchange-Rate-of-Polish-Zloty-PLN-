@@ -52,7 +52,7 @@ Results are written to `data/rates.csv` and `outputs/`.
   lowest/highest rows are intentional.
 -  
 
-## Results (2021-10-24 to 2026-10-23)
+## Results (2021-10-25 to 2026-10-23)
 
 | Currency | Lowest | Highest | Biggest one-day fall | Biggest one-day rise |
 |---|---|---|---|---|
