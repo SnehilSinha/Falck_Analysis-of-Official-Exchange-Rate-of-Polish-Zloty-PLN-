@@ -10,7 +10,7 @@ Data: NBP Web API, table A (average rates), https://api.nbp.pl/en.html
 ```
 python -m venv .venv
 .venv\Scripts\activate        (Mac/Linux: source .venv/bin/activate)
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 python -m pln_rates.main --end-date 2026-10-23
 python -m pytest
 ```
@@ -42,13 +42,17 @@ Results are written to `data/rates.csv` and `outputs/`.
   is read as the biggest one-day fall / rise.
 - If two days tie, the earliest is reported.
 - Table A comes out between 11:45 and 12:15 Warsaw time. Before 12:15 the default
-  end date is yesterday.
-- 5 years = 365 * 5 days back from the end date.
+  end date is yesterday
+- 5 calendar years back from the end date
 - A 404 from the API means no data in that window (weekend, not published yet),
   so it is skipped. A 400 means our request is wrong, so the script stops.
   Timeouts and 5xx errors are retried 3 times.
+- The script stops with an error if a currency has a gap of more than 7 days, doesn’t
+  cover the period, or has missing or non-positive rates. Blank change columns on the
+  lowest/highest rows are intentional.
+-  
 
-## Results (2021-10-24 to 2026-10-23)
+## Results (2021-10-25 to 2026-10-23)
 
 | Currency | Lowest | Highest | Biggest one-day fall | Biggest one-day rise |
 |---|---|---|---|---|
@@ -66,11 +70,19 @@ zloty weakened sharply after the invasion of Ukraine.
 ![levels](outputs/levels.png)
 ![indexed](outputs/indexed.png)
 
-## What I would add for production
+## Not done, and what I would do next
 
-- run it on a schedule, after 12:15 Warsaw time
-- load only new days instead of all 5 years every time
-- store in a proper platform (for example Delta tables on Databricks) instead of CSV
-- alerting on failures and data quality checks
-- CI/CD pipeline
-- making the plots more interactive
+- Fewer requests: NBP can return all currencies in one call (the `/tables/a/`
+  endpoint), which would need 20 requests instead of 80. I used the
+  per-currency endpoint because that is the one I explored and tested.
+- Check for unusual daily jumps and warn about them. Right now only missing
+  and zero or negative rates are caught
+- Tests for the whole run (`main`) and for what is in the charts. Right now
+  they only check that the chart files are created
+- Better charts: mark the lowest and highest points and the 2022-03-07 jump,
+  and add a chart of daily percent changes
+- PySpark: I used Pandas because the data is only about 5,000 rows. If the
+  data grew, the analysis step would move to PySpark using window functions
+- For a real production setup: a daily scheduled run after 12:15, loading
+  only new days, storing in Delta tables on Databricks instead of CSV,
+  alerts when the job fails, and CI/CD.
