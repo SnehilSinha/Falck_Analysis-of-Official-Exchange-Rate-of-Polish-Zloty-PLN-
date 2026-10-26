@@ -1,4 +1,6 @@
-requests
-pandas
-matplotlib
-pytest
+Package                   Version
+------------------------- -----------
+matplotlib                3.10.1
+numpy                     2.2.3
+pandas                    3.0.2
+requests                  2.33.1
