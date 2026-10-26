@@ -73,3 +73,4 @@ zloty weakened sharply after the invasion of Ukraine.
 - store in a proper platform (for example Delta tables on Databricks) instead of CSV
 - alerting on failures and data quality checks
 - CI/CD pipeline
+- making the plots more interactive
