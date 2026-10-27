@@ -32,7 +32,7 @@ Results are written to `data/rates.csv` and `outputs/`.
   (checked: GBP is about 5, JPY is per 1 yen, about 0.025).
 - A falling rate means the foreign currency lost value against the zloty.
 - NBP only allows 93 days per request, so the 5 years are downloaded in windows.
-  Windows do not overlap, and duplicate dates are dropped anyway.
+  Windows do not overlap, and duplicate dates are dropped anyway. Experimenting showed that API accepted longer ranges, which clashed with the documentation. The documentation has been followed, because undocumented behaviour can change
 - There are no rates on weekends and Polish holidays. "One day" means one
   published day to the next published day.
 - Biggest one-day moves are ranked by percent change, because JPY (about 0.025)
